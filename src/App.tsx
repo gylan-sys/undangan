@@ -404,6 +404,42 @@ export default function App() {
 
   const [isUploading, setIsUploading] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [rsvpsList, setRsvpsList] = useState<any[]>([]);
+  const [adminActiveTab, setAdminActiveTab] = useState<'config' | 'dashboard'>('config');
+  const [rsvpSearchQuery, setRsvpSearchQuery] = useState('');
+  const [rsvpFilterStatus, setRsvpFilterStatus] = useState<'all' | 'hadir' | 'absen'>('all');
+
+  const filteredRsvps = useMemo(() => {
+    return rsvpsList.filter(item => {
+      const nameMatch = (item.name || '').toLowerCase().includes(rsvpSearchQuery.toLowerCase());
+      const isHadir = item.status === 'yes' || item.status === 'hadir';
+      const statusMatch = rsvpFilterStatus === 'all' || 
+        (rsvpFilterStatus === 'hadir' && isHadir) || 
+        (rsvpFilterStatus === 'absen' && !isHadir);
+      return nameMatch && statusMatch;
+    });
+  }, [rsvpsList, rsvpSearchQuery, rsvpFilterStatus]);
+
+  const totalRespondents = rsvpsList.length;
+  const totalAttendingGuests = rsvpsList
+    .filter(r => r.status === 'yes' || r.status === 'hadir')
+    .reduce((acc, curr) => acc + parseInt(curr.guests || '1'), 0);
+  const totalAttendingFamilies = rsvpsList.filter(r => r.status === 'yes' || r.status === 'hadir').length;
+  const totalAbsentFamilies = rsvpsList.filter(r => r.status !== 'yes' && r.status !== 'hadir').length;
+
+  // Fetch RSVPs when showSettings is true
+  useEffect(() => {
+    if (showSettings) {
+      fetch('/api/rsvps')
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setRsvpsList(data);
+          }
+        })
+        .catch(err => console.error("Error fetching RSVPs:", err));
+    }
+  }, [showSettings]);
 
   // Load configuration from server on mount
   useEffect(() => {
@@ -456,6 +492,31 @@ export default function App() {
     .finally(() => {
       setIsSaving(false);
     });
+  };
+
+  const exportRsvpsToCSV = () => {
+    if (rsvpsList.length === 0) {
+      alert("Belum ada data RSVP untuk diekspor!");
+      return;
+    }
+    const headers = ["Nama Tamu", "Status Kehadiran", "Jumlah Tamu", "Waktu Konfirmasi"];
+    const rows = rsvpsList.map(r => [
+      r.name,
+      (r.status === 'yes' || r.status === 'hadir') ? 'Hadir' : 'Absen',
+      (r.status === 'yes' || r.status === 'hadir') ? (r.guests || '1') : '0',
+      r.time || '-'
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+      + [headers.join(","), ...rows.map(e => e.map(val => `"${val}"`).join(","))].join("\n");
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Daftar_RSVP_${weddingData.groomShort || 'Groom'}_${weddingData.brideShort || 'Bride'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Upload to server chunk / base64
@@ -624,6 +685,24 @@ export default function App() {
   const submitRsvp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!rsvp.name || !rsvp.status) return;
+
+    fetch('/api/rsvp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: rsvp.name,
+        status: rsvp.status,
+        guests: rsvp.guests
+      })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error("Gagal mengirim RSVP ke server");
+      return res.json();
+    })
+    .catch(err => {
+      console.error("Error submitting RSVP to server:", err);
+    });
+
     alert(`Terima kasih ${rsvp.name}, konfirmasi Anda telah terkirim!`);
     confetti({
       particleCount: 100,
@@ -1633,19 +1712,49 @@ export default function App() {
                 initial={{ opacity: 0, y: 20, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                className="absolute bottom-16 left-0 bg-[#fdfbf9] py-6 px-5 border border-zinc-200 shadow-[0_10px_30px_-5px_rgba(0,0,0,0.15)] min-w-[325px] sm:min-w-[400px] max-w-[450px] rounded-2xl text-zinc-800"
+                className={`absolute bottom-16 left-0 bg-[#fdfbf9] py-6 px-5 border border-zinc-200 shadow-[0_10px_40px_rgba(0,0,0,0.15)] rounded-2xl text-zinc-800 transition-all duration-300 md:duration-500 transform-gpu ${
+                  adminActiveTab === 'dashboard' 
+                    ? 'w-[92vw] sm:w-[620px] md:w-[820px] max-w-4xl' 
+                    : 'min-w-[325px] sm:min-w-[400px] max-w-[450px]'
+                }`}
               >
-                <div className="flex justify-between items-center mb-6 border-b border-zinc-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">⚙️</span>
-                    <h4 className="font-sans font-bold text-lg text-zinc-900 tracking-tight">Admin Customization</h4>
+                <div className="flex flex-col gap-4 mb-6 border-b border-zinc-100 pb-3">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🤵👰</span>
+                      <h4 className="font-sans font-bold text-lg text-[#1b3d2b] tracking-tight">Admin Wedding Panel</h4>
+                    </div>
+                    <button onClick={() => setShowSettings(false)} className="text-zinc-400 hover:text-zinc-600 cursor-pointer p-1 rounded-full hover:bg-zinc-100">
+                      <X size={18} />
+                    </button>
                   </div>
-                  <button onClick={() => setShowSettings(false)} className="text-zinc-400 hover:text-zinc-600 cursor-pointer p-1 rounded-full hover:bg-zinc-100">
-                    <X size={18} />
-                  </button>
+                  
+                  {/* Tabs Selector */}
+                  <div className="flex bg-zinc-100 rounded-lg p-1 text-xs gap-1 select-none">
+                    <button
+                      type="button"
+                      onClick={() => setAdminActiveTab('config')}
+                      className={`flex-1 py-1.5 rounded-md font-sans font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        adminActiveTab === 'config' ? 'bg-white text-[#1b3d2b] shadow-sm' : 'text-zinc-500 hover:text-zinc-800'
+                      }`}
+                    >
+                      ⚙️ Edit Undangan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminActiveTab('dashboard')}
+                      className={`flex-1 py-1.5 rounded-md font-sans font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        adminActiveTab === 'dashboard' ? 'bg-white text-[#1b3d2b] shadow-sm' : 'text-zinc-500 hover:text-zinc-800'
+                      }`}
+                    >
+                      📊 RSVP Dashboard ({totalRespondents})
+                    </button>
+                  </div>
                 </div>
-                
-                <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200">
+
+                {adminActiveTab === 'config' ? (
+                  <>
+                    <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200">
                   {/* Bride & Groom Details */}
                   <div className="space-y-3">
                     <h5 className="text-[10px] uppercase tracking-[0.2em] text-[#b58c4c] font-black border-l-2 border-[#b58c4c] pl-2">Bride & Groom</h5>
@@ -1896,6 +2005,43 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+
+                  {/* RSVP List (Daftar Kehadiran) */}
+                  <div className="space-y-3 border-t border-zinc-150 pt-4">
+                    <div className="flex justify-between items-center">
+                      <h5 className="text-[10px] uppercase tracking-[0.2em] text-[#b58c4c] font-black border-l-2 border-[#b58c4c] pl-2">Daftar Hadir (RSVP)</h5>
+                      <span className="text-[9px] bg-[#1b3d2b] text-white px-2 py-0.5 rounded-full font-bold font-mono">
+                        {rsvpsList.filter(r => r.status === 'yes' || r.status === 'hadir').reduce((acc, curr) => acc + parseInt(curr.guests || '1'), 0)} Tamu Hadir
+                      </span>
+                    </div>
+
+                    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-2 max-h-[160px] overflow-y-auto space-y-2 scrollbar-thin">
+                      {rsvpsList.length === 0 ? (
+                        <p className="text-[9px] text-zinc-400 text-center py-4 uppercase tracking-wider">Belum ada konfirmasi kehadiran</p>
+                      ) : (
+                        rsvpsList.map((item, idx) => (
+                          <div key={idx} className="flex justify-between items-start text-[10px] pb-1.5 border-b border-zinc-150 last:border-0 last:pb-0">
+                            <div>
+                              <p className="font-bold text-zinc-800">{item.name}</p>
+                              <p className="text-[8px] text-zinc-400 font-mono mt-0.5">{item.time || 'Barusan'}</p>
+                            </div>
+                            <div className="text-right">
+                              <span className={`inline-block text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                (item.status === 'yes' || item.status === 'hadir')
+                                  ? 'bg-green-100 text-[#1b3d2b]' 
+                                  : 'bg-rose-50 text-rose-700'
+                              }`}>
+                                {(item.status === 'yes' || item.status === 'hadir') ? 'Hadir' : 'Absen'}
+                              </span>
+                              {(item.status === 'yes' || item.status === 'hadir') && (
+                                <p className="text-[8px] text-zinc-500 font-bold mt-0.5">{item.guests || '1'} Orang</p>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-5 pt-4 border-t border-[#dfb86c]/20 flex flex-col gap-2">
@@ -1921,7 +2067,120 @@ export default function App() {
                     Changes are saved locally on this browser.
                   </p>
                 </div>
-              </motion.div>
+              </>
+            ) : (
+              // DASHBOARD VIEW TAB WITH EXPANSIVE RESPONSIVE TABLE
+              <div className="space-y-4">
+                {/* Quick summary statistics */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-zinc-100 border border-zinc-200 p-2.5 rounded-xl text-center">
+                    <span className="text-[8px] text-zinc-500 font-bold block uppercase tracking-wider mb-0.5">Total Konfirmasi</span>
+                    <span className="font-mono text-base font-bold text-zinc-800">{totalRespondents}</span>
+                    <span className="text-[7.5px] text-zinc-400 block font-medium">Keluarga</span>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-xl text-center">
+                    <span className="text-[8px] text-[#1b3d2b] font-bold block uppercase tracking-wider mb-0.5">Tamu Hadir</span>
+                    <span className="font-mono text-base font-bold text-[#1b3d2b]">{totalAttendingGuests}</span>
+                    <span className="text-[7.5px] text-zinc-400 block font-medium">({totalAttendingFamilies} Keluarga)</span>
+                  </div>
+                  <div className="bg-orange-50 border border-orange-100 p-2.5 rounded-xl text-center">
+                    <span className="text-[8px] text-orange-700 font-bold block uppercase tracking-wider mb-0.5">Tamu Absen</span>
+                    <span className="font-mono text-base font-bold text-orange-700">{totalAbsentFamilies}</span>
+                    <span className="text-[7.5px] text-zinc-400 block font-medium">Keluarga</span>
+                  </div>
+                </div>
+
+                {/* Filters and search & Download Actions */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <input 
+                      type="text"
+                      placeholder="Cari nama tamu..."
+                      value={rsvpSearchQuery}
+                      onChange={(e) => setRsvpSearchQuery(e.target.value)}
+                      className="w-full text-left pl-3 pr-8 py-2 text-xs border border-zinc-200 rounded-lg bg-zinc-50 focus:outline-none focus:border-[#b58c4c] focus:bg-white text-zinc-800 font-semibold"
+                    />
+                    {rsvpSearchQuery && (
+                      <button 
+                        onClick={() => setRsvpSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 font-bold text-xs"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-2 justify-between">
+                    <select
+                      value={rsvpFilterStatus}
+                      onChange={(e: any) => setRsvpFilterStatus(e.target.value)}
+                      className="py-1.5 px-2 bg-zinc-50 border border-zinc-200 rounded-lg text-xs text-zinc-700 font-bold focus:outline-none cursor-pointer"
+                    >
+                      <option value="all">Semua Status</option>
+                      <option value="hadir">Hadir</option>
+                      <option value="absen">Absen</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={exportRsvpsToCSV}
+                      className="py-1.5 px-3 bg-[#1b3d2b] hover:bg-[#12281c] text-white text-[9px] uppercase font-black tracking-widest rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors"
+                      title="Ekspor ke Excel/CSV"
+                    >
+                      📥 Export CSV
+                    </button>
+                  </div>
+                </div>
+
+                {/* The Main Data Table */}
+                <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white shadow-inner">
+                  <div className="overflow-x-auto max-h-[300px] scrollbar-thin">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-zinc-100 text-zinc-600 border-b border-zinc-200 font-bold uppercase tracking-wider text-[9px] sticky top-0 z-10 select-none">
+                          <th className="py-2.5 px-3">Nama Tamu</th>
+                          <th className="py-2.5 px-3 text-center">Kehadiran</th>
+                          <th className="py-2.5 px-3 text-center font-mono">Pax</th>
+                          <th className="py-2.5 px-3">Waktu Konfirmasi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100 font-sans">
+                        {filteredRsvps.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+                              Tidak ditemukan data RSVP yang sesuai
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredRsvps.map((rsvpItem, index) => {
+                            const isHadir = rsvpItem.status === 'yes' || rsvpItem.status === 'hadir';
+                            return (
+                              <tr key={index} className="hover:bg-zinc-50/50 transition-colors">
+                                <td className="py-2 px-3 font-semibold text-zinc-800 break-words max-w-[150px] sm:max-w-[200px]">
+                                  {rsvpItem.name}
+                                </td>
+                                <td className="py-2 px-3 text-center">
+                                  <span className={`inline-block py-0.5 px-2 rounded-full font-bold text-[8.5px] uppercase font-sans ${isHadir ? 'bg-emerald-100 text-[#1b3d2b]' : 'bg-rose-100 text-rose-800'}`}>
+                                    {isHadir ? 'Hadir' : 'Absen'}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-center font-bold text-zinc-600 font-mono">
+                                  {isHadir ? (rsvpItem.guests || 1) : 0}
+                                </td>
+                                <td className="py-2 px-3 text-zinc-400 text-[9.5px] break-all font-mono">
+                                  {rsvpItem.time || 'Barusan'}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
             )}
           </AnimatePresence>
         </div>

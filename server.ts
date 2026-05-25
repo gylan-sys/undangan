@@ -30,6 +30,60 @@ async function startServer() {
 
   // Configuration persistence paths
   const configPath = path.join(process.cwd(), "wedding_config_server.json");
+  const rsvpPath = path.join(process.cwd(), "wedding_rsvps_server.json");
+
+  // GET RSVPs
+  app.get("/api/rsvps", (req, res) => {
+    if (fs.existsSync(rsvpPath)) {
+      try {
+        const rsvpsData = fs.readFileSync(rsvpPath, "utf8");
+        return res.json(JSON.parse(rsvpsData));
+      } catch (err: any) {
+        console.error("Error reading rsvps:", err);
+      }
+    }
+    res.json([]);
+  });
+
+  // POST RSVP
+  app.post("/api/rsvp", (req, res) => {
+    try {
+      const { name, status, guests } = req.body;
+      if (!name || !status) {
+        return res.status(400).json({ error: "Name and status are required" });
+      }
+
+      let rsvps: any[] = [];
+      if (fs.existsSync(rsvpPath)) {
+        try {
+          rsvps = JSON.parse(fs.readFileSync(rsvpPath, "utf8"));
+        } catch (err) {
+          console.error("Error reading rsvps file:", err);
+        }
+      }
+
+      // Check if user already RSVP'd - update, or add new
+      const existingIndex = rsvps.findIndex((r: any) => r.name.toLowerCase() === name.toLowerCase());
+      const newRsvp = {
+        name,
+        status,
+        guests: guests || "1",
+        time: new Date().toLocaleDateString("id-ID", { hour: '2-digit', minute: '2-digit' })
+      };
+
+      if (existingIndex > -1) {
+        rsvps[existingIndex] = newRsvp;
+      } else {
+        rsvps.unshift(newRsvp);
+      }
+
+      fs.writeFileSync(rsvpPath, JSON.stringify(rsvps, null, 2), "utf8");
+      res.json({ success: true, rsvps });
+    } catch (err: any) {
+      console.error("Error saving rsvp:", err);
+      res.status(500).json({ error: "Failed to save RSVP" });
+    }
+  });
 
   // GET configuration
   app.get("/api/config", (req, res) => {
