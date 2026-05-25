@@ -1,0 +1,8 @@
+{
+  "name": "Undangan Pernikahan Digital",
+  "description": "Undangan pernikahan digital elegan dengan tema Classic Luxury abad-21 dan tema 2D Retro Game (Pixel Art) yang interaktif, lengkap dengan side-scroller, hewan peliharaan, dan RSVP.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

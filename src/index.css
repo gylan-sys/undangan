@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Montserrat:wght@100;200;300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", serif;
+  --font-display: "Playfair Display", serif;
+  
+  --color-luxury-gold: #C5A059;
+  --color-luxury-gold-dark: #A67C37;
+  --color-luxury-emerald: #1A3026;
+  --color-luxury-midnight: #1B1B1B;
+  --color-luxury-cream: #FAF9F6;
+  --color-luxury-champagne: #F3EFE0;
+  
+  --color-wedding-gold: #C5A059;
+  --color-wedding-cream: #FAF9F6;
+  --color-wedding-dark: #1B1B1B;
+  --color-wedding-green: #1A3026;
+  --color-sage-green: #C5A059;
+}
+
+@layer base {
+  body {
+    @apply bg-luxury-cream text-luxury-midnight font-sans antialiased overflow-x-hidden;
+  }
+}
+
+.luxury-gradient {
+  background: linear-gradient(135deg, #1A3026 0%, #112119 100%);
+}
+
+.gold-text-gradient {
+  background: linear-gradient(to right, #C5A059, #F3EFE0, #C5A059);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-border-gradient {
+  border-image: linear-gradient(to right, #C5A059, #F3EFE0, #C5A059) 1;
+}
+
+.perspective-2000 {
+  perspective: 2000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.bg-pattern {
+  background-image: url('https://www.transparenttextures.com/patterns/black-linen.png');
+  opacity: 0.03;
+}
+
+.shadow-luxury {
+  box-shadow: 
+    0 10px 40px -10px rgba(26, 48, 38, 0.15),
+    0 20px 50px -20px rgba(197, 160, 89, 0.1);
+}
+
+.luxury-glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(197, 160, 89, 0.2);
+}

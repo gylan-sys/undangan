@@ -1,0 +1,7 @@
+services:
+  wedding-app:
+    build: .
+    ports:
+      - "8080:80"
+    container_name: wedding_invitation
+    restart: unless-stopped
